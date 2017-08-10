@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp1.1</TargetFramework>
+    <AssemblyName>Lykke.Service.FIXQuotes.Core</AssemblyName>
+    <RootNamespace>Lykke.Service.FIXQuotes.Core</RootNamespace>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Lykke.Common" Version="1.1.79" />
+    <PackageReference Include="Lykke.Domain.Prices" Version="0.9.11" />
+  </ItemGroup>
+
+</Project>
