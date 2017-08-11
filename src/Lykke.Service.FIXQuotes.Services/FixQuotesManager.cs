@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,40 +12,74 @@ using Lykke.Service.FIXQuotes.Core.Services;
 
 namespace Lykke.Service.FIXQuotes.Services
 {
-    public sealed class FixQuotesManager : IFixQuotesManager
+    public sealed class FixQuotesManager : IFixQuotesManager, IDisposable
     {
         private readonly ILog _log;
         private readonly IFixQuoteRepository _quoteRepository;
         private readonly AppSettings.FIXQuotesSettings _settings;
+        private readonly IFixQuotePublisher _fixQuotePublisher;
         private ConcurrentDictionary<string, FixQuote> _cache;
         private DateTime _startTime;
         private DateTime _publishTime;
         private bool _backupIsActive;
         private readonly Timer _backupTimer;
+        private readonly Timer _publishTimer;
+        private readonly TimeSpan _accumulationPeriod;
+        private readonly TimeSpan _backupPeriod = TimeSpan.FromSeconds(1);
 
-        public FixQuotesManager(ILog log, IFixQuoteRepository quoteRepository, AppSettings.FIXQuotesSettings settings)
+        public FixQuotesManager(ILog log, IFixQuoteRepository quoteRepository, AppSettings.FIXQuotesSettings settings, IFixQuotePublisher fixQuotePublisher)
         {
             _log = log;
             _quoteRepository = quoteRepository;
             _settings = settings;
+            _fixQuotePublisher = fixQuotePublisher;
             SetStartTime();
             SetPublishTime();
-            _backupTimer = new Timer(OnBackup, null, TimeSpan.MaxValue, Timeout.InfiniteTimeSpan);
+            _backupTimer = new Timer(OnBackup, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            _publishTimer = new Timer(OnPublish, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            _accumulationPeriod = TimeSpan.FromHours(_settings.AccumulationPeriodHours);
+            SchedulePublishing();
+        }
+
+        private void SchedulePublishing()
+        {
+            var nextPublishTime = _publishTime > DateTime.UtcNow ? _publishTime : _publishTime.AddDays(1);
+            var durationToNextPublishing = nextPublishTime - DateTime.UtcNow;
+            _publishTimer.Change(durationToNextPublishing, TimeSpan.FromDays(1));
         }
 
         private void SetPublishTime()
         {
-            _startTime = DateTime.UtcNow.Date.AddHours(_settings.PublishTime);
+            _publishTime = DateTime.UtcNow.Date.AddHours(_settings.PublishTime);
         }
 
         private void SetStartTime()
         {
-            _publishTime = DateTime.Now.Date.AddHours(_settings.PublishTime - _settings.AccumulationPeriodHours);
+            _startTime = DateTime.UtcNow.Date.AddHours(_settings.PublishTime - _settings.AccumulationPeriodHours);
         }
 
-        private void OnBackup(object state)
+        private async void OnPublish(object state)
         {
-            _quoteRepository.AddOrUpdateBatchAsync(_cache.Values);
+            await _fixQuotePublisher.Publish(new ReadOnlyCollection<FixQuote>(_cache.Values.ToArray()));
+        }
+
+        private async void OnBackup(object state)
+        {
+            try
+            {
+                await _quoteRepository.AddOrUpdateBatchAsync(_cache.Values);
+            }
+            catch (Exception e)
+            {
+                await _log.WriteErrorAsync(nameof(FixQuotesManager), nameof(OnBackup), "Saving fix prices to DB", e);
+            }
+            finally
+            {
+                if (_backupIsActive)
+                {
+                    _backupTimer.Change(_backupPeriod, Timeout.InfiniteTimeSpan);
+                }
+            }
         }
 
 
@@ -61,12 +96,12 @@ namespace Lykke.Service.FIXQuotes.Services
 
         }
 
-        public Task ProcessQuoteAsync(IQuote quote)
+        public async Task ProcessQuoteAsync(IQuote quote)
         {
             var ask = quote.IsBuy;
             var price = (decimal)quote.Price;
             ShiftDates();
-            ScheduleBackup();
+            await ScheduleBackup();
             if (TakeQuoteIntoAccount(quote))
             {
                 FixQuote newFixQuote;
@@ -83,7 +118,6 @@ namespace Lykke.Service.FIXQuotes.Services
                 }
                 _cache[quote.AssetPair] = newFixQuote;
             }
-            return Task.CompletedTask;
         }
 
         private void ShiftDates()
@@ -98,31 +132,40 @@ namespace Lykke.Service.FIXQuotes.Services
             }
         }
 
-        private void ScheduleBackup()
+        private async Task ScheduleBackup()
         {
             var now = DateTime.UtcNow;
             if (_backupIsActive)
             {
-                if (now < _startTime || now > _publishTime)
+                if (now > _publishTime)
                 {
                     _backupIsActive = false;
                     _cache.Clear();
                     _backupTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                    await _log.WriteInfoAsync(nameof(FixQuotesManager), nameof(OnBackup), "Saving fix prices to DB", "Backup stopped");
+
                 }
             }
             else
             {
-                if (now >= _startTime && now < _publishTime)
+                if (_publishTime > now && _publishTime - now <= _accumulationPeriod)
                 {
                     _backupIsActive = true;
-                    _backupTimer.Change(TimeSpan.Zero, TimeSpan.FromSeconds(1));
+                    _backupTimer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+                    await _log.WriteInfoAsync(nameof(FixQuotesManager), nameof(OnBackup), "Saving fix prices to DB", "Backup started");
+
                 }
             }
         }
 
         private bool TakeQuoteIntoAccount(IQuote quote)
         {
-            return (quote.Timestamp - _startTime).Hours <= _settings.AccumulationPeriodHours;
+            return _publishTime > quote.Timestamp && _publishTime - quote.Timestamp <= _accumulationPeriod;
+        }
+
+        public void Dispose()
+        {
+            _backupTimer?.Dispose();
         }
     }
 }

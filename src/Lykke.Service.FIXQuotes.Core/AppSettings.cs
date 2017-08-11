@@ -8,18 +8,11 @@
         public class FIXQuotesSettings
         {
             public DbSettings Db { get; set; }
-            public LogsSettings Logs { get; set; }
             public RabbitSettings QuoteFeedRabbit { get; set; }
+            public RabbitSettings FixQuoteFeedRabbit { get; set; }
             public int PublishTime { get; set; }
             public int AccumulationPeriodHours { get; set; }
         }
-    }
-
-
-
-    public class LogsSettings
-    {
-        public string DbConnectionString { get; set; }
     }
 
     public class DbSettings
@@ -47,6 +40,6 @@
     {
         public string ConnectionString { get; set; }
         public string ExchangeName { get; set; }
-        public string DeadLetterExchangeName { get; set; }
+        public string QueueName { get; set; }
     }
 }

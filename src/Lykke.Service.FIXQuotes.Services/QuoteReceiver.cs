@@ -6,55 +6,36 @@ using Autofac;
 using Common.Log;
 using Lykke.Domain.Prices;
 using Lykke.Domain.Prices.Contracts;
-using Lykke.Domain.Prices.Model;
-using Lykke.RabbitMqBroker;
 using Lykke.RabbitMqBroker.Subscriber;
-using Lykke.Service.FIXQuotes.Core;
 using Lykke.Service.FIXQuotes.Core.Services;
 
 namespace Lykke.Service.FIXQuotes.Services
 {
-    public sealed class QuoteBroker : IStartable, IDisposable
+    public sealed class QuoteReceiver : IStartable, IDisposable
     {
         private readonly ILog _log;
         private readonly IFixQuotesManager _quotesManager;
-        private readonly AppSettings.FIXQuotesSettings _settings;
-        private RabbitMqSubscriber<IQuote> _subscriber;
+        private readonly RabbitMqSubscriber<IQuote> _subscriber;
 
 
-        public QuoteBroker(ILog log, IFixQuotesManager quotesManager, AppSettings.FIXQuotesSettings settings)
+        public QuoteReceiver(ILog log, IFixQuotesManager quotesManager, RabbitMqSubscriber<IQuote> subscriber)
         {
             _log = log;
             _quotesManager = quotesManager;
-            _settings = settings;
+            _subscriber = subscriber;
         }
 
         public void Start()
         {
-            var settings = new RabbitMqSubscriptionSettings
-            {
-                ConnectionString = _settings.QuoteFeedRabbit.ConnectionString,
-                QueueName = $"{_settings.QuoteFeedRabbit.ExchangeName}.fixquotes",
-                ExchangeName = _settings.QuoteFeedRabbit.ExchangeName,
-                IsDurable = true
-            };
-
             try
             {
-                _subscriber = new RabbitMqSubscriber<IQuote>(settings,
-                        new ResilientErrorHandlingStrategy(_log, settings,
-                            retryTimeout: TimeSpan.FromSeconds(10),
-                            next: new DeadQueueErrorHandlingStrategy(_log, settings)))
-                    .SetMessageDeserializer(new JsonMessageDeserializer<Quote>())
-                    .SetMessageReadStrategy(new MessageReadQueueStrategy())
+                _subscriber
                     .Subscribe(ProcessQuoteAsync)
-                    .CreateDefaultBinding()
-                    .SetLogger(_log)
                     .Start();
             }
             catch (Exception ex)
             {
-                _log.WriteErrorAsync(nameof(QuoteBroker), nameof(Start), null, ex).Wait();
+                _log.WriteErrorAsync(nameof(QuoteReceiver), nameof(Start), null, ex).Wait();
                 throw;
             }
         }
@@ -72,7 +53,7 @@ namespace Lykke.Service.FIXQuotes.Services
                 if (validationErrors.Any())
                 {
                     var message = string.Join("\r\n", validationErrors);
-                    await _log.WriteWarningAsync(nameof(QuoteBroker), nameof(ProcessQuoteAsync), quote.ToJson(), message);
+                    await _log.WriteWarningAsync(nameof(QuoteReceiver), nameof(ProcessQuoteAsync), quote.ToJson(), message);
 
                     return;
                 }
@@ -81,7 +62,7 @@ namespace Lykke.Service.FIXQuotes.Services
             }
             catch (Exception ex)
             {
-                await _log.WriteErrorAsync(nameof(QuoteBroker), nameof(ProcessQuoteAsync), null, ex);
+                await _log.WriteErrorAsync(nameof(QuoteReceiver), nameof(ProcessQuoteAsync), null, ex);
             }
         }
 

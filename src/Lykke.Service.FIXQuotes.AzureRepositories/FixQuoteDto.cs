@@ -13,7 +13,7 @@ namespace Lykke.Service.FIXQuotes.AzureRepositories
 
         public FixQuoteDto(DateTime quoteDate, string assetPair)
         {
-            Date = quoteDate;
+            Date = quoteDate.Date;
             AssetPair = assetPair;
 
             PartitionKey = Date.ToIsoDate();
