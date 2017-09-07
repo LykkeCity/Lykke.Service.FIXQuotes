@@ -1,38 +1,32 @@
 ﻿using System;
+using System.Collections.Generic;
 using Autofac;
-using Autofac.Extensions.DependencyInjection;
-using AzureStorage;
-using AzureStorage.Tables;
+using Common;
 using Common.Log;
 using Lykke.Domain.Prices.Contracts;
 using Lykke.Domain.Prices.Model;
 using Lykke.RabbitMqBroker;
 using Lykke.RabbitMqBroker.Publisher;
 using Lykke.RabbitMqBroker.Subscriber;
-using Lykke.Service.FIXQuotes.AzureRepositories;
 using Lykke.Service.FIXQuotes.Core;
-using Lykke.Service.FIXQuotes.Core.Domain;
+using Lykke.Service.FIXQuotes.Core.Domain.Models;
 using Lykke.Service.FIXQuotes.Core.Services;
 using Lykke.Service.FIXQuotes.Services;
-using Microsoft.Extensions.DependencyInjection;
+using Lykke.Service.MarketProfile.Client;
+using Lykke.SettingsReader;
 
 namespace Lykke.Service.FIXQuotes.Modules
 {
     public class ServiceModule : Module
     {
-        private readonly AppSettings.FIXQuotesSettings _settings;
+        private readonly AppSettings.FixQuotesSettings _settings;
         private readonly ILog _log;
-        // NOTE: you can remove it if you don't need to use IServiceCollection extensions to register service specific dependencies
-        private readonly IServiceCollection _services;
 
-        private const string BackupTableName = "fixquotesbackup";
 
-        public ServiceModule(AppSettings.FIXQuotesSettings settings, ILog log)
+        public ServiceModule(IReloadingManager<AppSettings> settings, ILog log)
         {
-            _settings = settings;
+            _settings = settings.CurrentValue.FixQuotesService;
             _log = log;
-
-            _services = new ServiceCollection();
         }
 
         protected override void Load(ContainerBuilder builder)
@@ -44,30 +38,47 @@ namespace Lykke.Service.FIXQuotes.Modules
                 .As<ILog>()
                 .SingleInstance();
 
-            var storage = new AzureTableStorage<FixQuoteDto>(_settings.Db.FixQuotesBackupConnString, BackupTableName, _log);
-            //   var wrapper = new RetryOnFailureAzureTableStorageDecorator<FixQuoteDto>(storage, 5, 5, TimeSpan.FromSeconds(10));
 
-            builder.RegisterInstance(storage)
-                .As<INoSQLTableStorage<FixQuoteDto>>();
+            builder.Register(t => new LykkeMarketProfile(new Uri(_settings.MarketProfileServiceClient.ServiceUrl)))
+                .As<ILykkeMarketProfile>();
 
-            builder.RegisterType<FixQuoteRepository>()
-                .As<IFixQuoteRepository>();
+            builder.RegisterType<MarketProfileService>()
+                .As<IMarketProfileService>();
 
+            builder.RegisterType<FixQuotePublisher>()
+                .As<IFixQuotePublisher>();
+
+            RegisterRabbit(builder);
+
+
+            builder.RegisterType<QuoteReceiver>()
+                .AsSelf()
+                .SingleInstance();
+
+            builder.RegisterType<FixQuotesManager>()
+                .As<IFixQuotesManager>()
+                .SingleInstance();
+        }
+
+        private void RegisterRabbit(ContainerBuilder builder)
+        {
             var reciverRabbitMqSettings = new RabbitMqSubscriptionSettings
             {
                 ConnectionString = _settings.QuoteFeedRabbit.ConnectionString,
                 QueueName = _settings.QuoteFeedRabbit.QueueName,
                 ExchangeName = _settings.QuoteFeedRabbit.ExchangeName,
-                IsDurable = true
+                IsDurable = false
             };
 
-            var subscriber = new RabbitMqSubscriber<IQuote>(reciverRabbitMqSettings,
-                    new ResilientErrorHandlingStrategy(_log, reciverRabbitMqSettings, TimeSpan.FromSeconds(10)))
-                .SetMessageDeserializer(new JsonMessageDeserializer<Quote>())
-                .SetMessageReadStrategy(new MessageReadQueueStrategy())
-                .SetLogger(_log);
 
-            builder.RegisterInstance(subscriber);
+            builder.Register(c => new RabbitMqSubscriber<IQuote>(reciverRabbitMqSettings,
+                        new ResilientErrorHandlingStrategy(_log, reciverRabbitMqSettings, TimeSpan.FromSeconds(10)))
+                    .SetMessageDeserializer(new JsonMessageDeserializer<Quote>())
+                    .SetMessageReadStrategy(new MessageReadWithTemporaryQueueStrategy())
+                    .SetLogger(_log))
+                .As<IMessageConsumer<IQuote>>()
+                .SingleInstance()
+                .AsSelf();
 
             var publisherRabbitMqSettings = new RabbitMqSubscriptionSettings
             {
@@ -77,26 +88,13 @@ namespace Lykke.Service.FIXQuotes.Modules
                 IsDurable = true
             };
 
-            var rabbitMqPublisher = new RabbitMqPublisher<AggregatedQuote>(publisherRabbitMqSettings)
-                .SetSerializer(new JsonMessageSerializer<AggregatedQuote>())
-                .SetPublishStrategy(new DefaultFanoutPublishStrategy(publisherRabbitMqSettings));
-
-            builder.RegisterInstance(rabbitMqPublisher);
-
-            builder.RegisterType<FixQuotePublisher>()
-                .As<IFixQuotePublisher>();
-
-            builder.RegisterType<QuoteReceiver>()
-                .As<IStartable>()
+            builder.Register(c => new RabbitMqPublisher<IEnumerable<FixQuoteModel>>(publisherRabbitMqSettings)
+                    .SetSerializer(new JsonMessageSerializer<IEnumerable<FixQuoteModel>>())
+                    .SetPublishStrategy(new DefaultFanoutPublishStrategy(publisherRabbitMqSettings))
+                    .SetLogger(_log))
+                .As<IMessageProducer<IEnumerable<FixQuoteModel>>>()
                 .SingleInstance()
-                .AutoActivate();
-
-            builder.RegisterType<FixQuotesManager>()
-                .As<IFixQuotesManager>()
-                .As<IStartable>()
-                .SingleInstance();
-
-            builder.Populate(_services);
+                .AsSelf();
         }
     }
 }

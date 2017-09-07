@@ -1,13 +1,20 @@
 ﻿using System;
+using System.Collections.Generic;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using AzureStorage.Tables;
 using Common.Log;
 using Lykke.Common.ApiLibrary.Middleware;
 using Lykke.Common.ApiLibrary.Swagger;
+using Lykke.Domain.Prices.Contracts;
 using Lykke.Logs;
+using Lykke.RabbitMqBroker.Publisher;
+using Lykke.RabbitMqBroker.Subscriber;
 using Lykke.Service.FIXQuotes.Core;
+using Lykke.Service.FIXQuotes.Core.Domain.Models;
+using Lykke.Service.FIXQuotes.Core.Services;
 using Lykke.Service.FIXQuotes.Modules;
+using Lykke.Service.FIXQuotes.Services;
 using Lykke.SettingsReader;
 using Lykke.SlackNotification.AzureQueue;
 using Microsoft.AspNetCore.Builder;
@@ -49,12 +56,10 @@ namespace Lykke.Service.FIXQuotes
             });
 
             var builder = new ContainerBuilder();
-            var appSettings = Environment.IsDevelopment()
-                ? Configuration.Get<AppSettings>()
-                : HttpSettingsLoader.Load<AppSettings>(Configuration.GetValue<string>("SettingsUrl"));
+            var appSettings = Configuration.LoadSettings<AppSettings>();
             var log = CreateLogWithSlack(services, appSettings);
 
-            builder.RegisterModule(new ServiceModule(appSettings.FIXQuotesService, log));
+            builder.RegisterModule(new ServiceModule(appSettings, log));
             builder.Populate(services);
             ApplicationContainer = builder.Build();
 
@@ -68,52 +73,79 @@ namespace Lykke.Service.FIXQuotes
                 app.UseDeveloperExceptionPage();
             }
 
-            app.UseLykkeMiddleware("FIXQuotes", ex => new {Message = "Technical problem"});
+            app.UseLykkeMiddleware("FIXQuotes", ex => new { Message = "Technical problem" });
 
             app.UseMvc();
             app.UseSwagger();
             app.UseSwaggerUi();
 
-            appLifetime.ApplicationStopped.Register(() =>
-            {
-                ApplicationContainer.Dispose();
-            });
+            appLifetime.ApplicationStarted.Register(StartApplication);
+            appLifetime.ApplicationStopping.Register(StopApplication);
+            appLifetime.ApplicationStopped.Register(CleanUp);
         }
 
-        private static ILog CreateLogWithSlack(IServiceCollection services, AppSettings settings)
+        private void StartApplication()
         {
-            LykkeLogToAzureStorage logToAzureStorage = null;
+            ApplicationContainer.Resolve<QuoteReceiver>();// the composition root
+            ApplicationContainer.Resolve<RabbitMqSubscriber<IQuote>>().Start();
+            ApplicationContainer.Resolve<RabbitMqPublisher<IEnumerable<FixQuoteModel>>>().Start();
 
-            var logToConsole = new LogToConsole();
-            var logAggregate = new LogAggregate();
 
-            logAggregate.AddLogger(logToConsole);
+        }
 
-            var dbLogConnectionString = settings.FIXQuotesService.Db.LogsConnString;
+        private void StopApplication()
+        {
 
-            // Creating azure storage logger, which logs own messages to concole log
-            if (!string.IsNullOrEmpty(dbLogConnectionString) && !(dbLogConnectionString.StartsWith("${") && dbLogConnectionString.EndsWith("}")))
-            {
-                logToAzureStorage = new LykkeLogToAzureStorage("Lykke.Service.FIXQuotes", new AzureTableStorage<LogEntity>(
-                    dbLogConnectionString, "FIXQuotesLog", logToConsole));
+        }
 
-                logAggregate.AddLogger(logToAzureStorage);
-            }
+        private void CleanUp()
+        {
+            ApplicationContainer.Dispose();
+        }
 
-            // Creating aggregate log, which logs to console and to azure storage, if last one specified
-            var log = logAggregate.CreateLogger();
+        private static ILog CreateLogWithSlack(IServiceCollection services, IReloadingManager<AppSettings> settings)
+        {
+            var consoleLogger = new LogToConsole();
+            var aggregateLogger = new AggregateLogger();
+
+            aggregateLogger.AddLog(consoleLogger);
+
 
             // Creating slack notification service, which logs own azure queue processing messages to aggregate log
             var slackService = services.UseSlackNotificationsSenderViaAzureQueue(new AzureQueueIntegration.AzureQueueSettings
             {
-                ConnectionString = settings.SlackNotifications.AzureQueue.ConnectionString,
-                QueueName = settings.SlackNotifications.AzureQueue.QueueName
-            }, log);
+                ConnectionString = settings.CurrentValue.SlackNotifications.AzureQueue.ConnectionString,
+                QueueName = settings.CurrentValue.SlackNotifications.AzureQueue.QueueName
+            }, aggregateLogger);
 
-            // Finally, setting slack notification for azure storage log, which will forward necessary message to slack service
-            logToAzureStorage?.SetSlackNotification(slackService);
 
-            return log;
+            var dbLogConnectionStringManager = settings.Nested(x => x.FixQuotesService.Db.LogsConnString);
+            var dbLogConnectionString = dbLogConnectionStringManager.CurrentValue;
+
+            if (!string.IsNullOrEmpty(dbLogConnectionString) && !(dbLogConnectionString.StartsWith("${") && dbLogConnectionString.EndsWith("}")))
+            {
+                const string appName = "Lykke.Service.FIXQuotes";
+
+
+                var persistenceManager = new LykkeLogToAzureStoragePersistenceManager(
+                    appName,
+                    AzureTableStorage<LogEntity>.Create(dbLogConnectionStringManager, "FIXQuotesLog", consoleLogger),
+                    consoleLogger);
+
+                var slackNotificationsManager = new LykkeLogToAzureSlackNotificationsManager(appName, slackService, consoleLogger);
+
+                var azureStorageLogger = new LykkeLogToAzureStorage(
+                    appName,
+                    persistenceManager,
+                    slackNotificationsManager,
+                    consoleLogger);
+
+                azureStorageLogger.Start();
+
+                aggregateLogger.AddLog(azureStorageLogger);
+            }
+
+            return aggregateLogger;
         }
     }
 }

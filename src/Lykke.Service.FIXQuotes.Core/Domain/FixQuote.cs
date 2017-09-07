@@ -2,25 +2,24 @@
 
 namespace Lykke.Service.FIXQuotes.Core.Domain
 {
-   public sealed class FixQuote
+    public sealed class FixQuote
     {
         public DateTime Date { get; }
-        public decimal AskSum { get; }
-        public decimal AskNum { get; }
+        public decimal Ask { get; }
+        public decimal Bid { get; }
         public string AssetPair { get; }
-        public decimal BidSum { get; }
-        public decimal BidNum { get; }
-        public decimal Mid { get; }
 
-        public FixQuote(DateTime date, string assetPair, decimal askSum, decimal askNum, decimal bidSum, decimal bidNum)
+        public FixQuote(DateTime date, string assetPair, decimal ask, decimal bid)
         {
             Date = date;
-            AskSum = askSum;
-            AskNum = askNum;
             AssetPair = assetPair;
-            BidSum = bidSum;
-            BidNum = bidNum;
-            Mid = (askSum + bidSum) / (askNum + bidNum) / 2;
+            Ask = ask;
+            Bid = bid;
+        }
+
+        public FixQuote(DateTime date, string assetPair, double ask, double bid) : this(date, assetPair, (decimal)ask, (decimal)bid)
+        {
+
         }
     }
 }

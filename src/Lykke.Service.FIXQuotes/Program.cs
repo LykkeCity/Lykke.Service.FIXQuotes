@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 
 namespace Lykke.Service.FIXQuotes
 {
-    public class Program
+    internal sealed class Program
     {
         public static void Main(string[] args)
         {
@@ -15,7 +15,7 @@ namespace Lykke.Service.FIXQuotes
 
             AssemblyLoadContext.Default.Unloading += ctx =>
             {
-                Console.WriteLine("SIGTERM recieved");
+                Console.WriteLine("SIGTERM received");
 
                 webHostCancellationTokenSource.Cancel();
 
@@ -30,7 +30,7 @@ namespace Lykke.Service.FIXQuotes
                 .UseApplicationInsights()
                 .Build();
 
-            host.Run(webHostCancellationTokenSource.Token);
+            host.Run();
 
             end.Set();
 

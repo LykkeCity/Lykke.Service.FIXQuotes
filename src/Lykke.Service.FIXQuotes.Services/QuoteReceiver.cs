@@ -2,47 +2,25 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Autofac;
+using Common;
 using Common.Log;
 using Lykke.Domain.Prices;
 using Lykke.Domain.Prices.Contracts;
-using Lykke.RabbitMqBroker.Subscriber;
 using Lykke.Service.FIXQuotes.Core.Services;
 
 namespace Lykke.Service.FIXQuotes.Services
 {
-    public sealed class QuoteReceiver : IStartable, IDisposable
+    public sealed class QuoteReceiver
     {
         private readonly ILog _log;
         private readonly IFixQuotesManager _quotesManager;
-        private readonly RabbitMqSubscriber<IQuote> _subscriber;
 
 
-        public QuoteReceiver(ILog log, IFixQuotesManager quotesManager, RabbitMqSubscriber<IQuote> subscriber)
+        public QuoteReceiver(ILog log, IFixQuotesManager quotesManager, IMessageConsumer<IQuote> subscriber)
         {
             _log = log;
             _quotesManager = quotesManager;
-            _subscriber = subscriber;
-        }
-
-        public void Start()
-        {
-            try
-            {
-                _subscriber
-                    .Subscribe(ProcessQuoteAsync)
-                    .Start();
-            }
-            catch (Exception ex)
-            {
-                _log.WriteErrorAsync(nameof(QuoteReceiver), nameof(Start), null, ex).Wait();
-                throw;
-            }
-        }
-
-        private void Stop()
-        {
-            _subscriber.Stop();
+            subscriber.Subscribe(ProcessQuoteAsync);
         }
 
         private async Task ProcessQuoteAsync(IQuote quote)
@@ -58,7 +36,7 @@ namespace Lykke.Service.FIXQuotes.Services
                     return;
                 }
 
-                await _quotesManager.ProcessQuoteAsync(quote);
+                _quotesManager.ProcessQuote(quote);
             }
             catch (Exception ex)
             {
@@ -88,11 +66,6 @@ namespace Lykke.Service.FIXQuotes.Services
             }
 
             return errors;
-        }
-
-        public void Dispose()
-        {
-            Stop();
         }
     }
 }

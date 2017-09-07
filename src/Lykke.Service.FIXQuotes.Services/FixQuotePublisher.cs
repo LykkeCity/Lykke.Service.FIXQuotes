@@ -1,48 +1,34 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
-using Autofac;
 using Common.Log;
 using Lykke.RabbitMqBroker.Publisher;
-using Lykke.Service.FIXQuotes.Core.Domain;
+using Lykke.Service.FIXQuotes.Core.Domain.Models;
 using Lykke.Service.FIXQuotes.Core.Services;
 
 namespace Lykke.Service.FIXQuotes.Services
 {
-    public class FixQuotePublisher : IStartable, IFixQuotePublisher
+    public sealed class FixQuotePublisher : IFixQuotePublisher
     {
         private readonly ILog _log;
-        private readonly RabbitMqPublisher<AggregatedQuote> _publisher;
-        public FixQuotePublisher(ILog log, RabbitMqPublisher<AggregatedQuote> publisher)
+        private readonly RabbitMqPublisher<IEnumerable<FixQuoteModel>> _publisher;
+        public FixQuotePublisher(ILog log, RabbitMqPublisher<IEnumerable<FixQuoteModel>> publisher)
         {
             _log = log;
             _publisher = publisher;
         }
 
-        public async Task Publish(IReadOnlyCollection<FixQuote> quotes)
+        public async Task Publish(IReadOnlyCollection<FixQuoteModel> quotes)
         {
             try
             {
-                foreach (var quote in quotes)
-                {
-                    var ac = new AggregatedQuote
-                    {
-                        AssetPair = quote.AssetPair,
-                        Date = quote.Date,
-                        Price = (double)quote.Mid
-                    };
-                    await _publisher.ProduceAsync(ac);
-                }
+                await _publisher.ProduceAsync(quotes.ToArray());
             }
             catch (System.Exception exception)
             {
                 await _log.WriteErrorAsync(nameof(FixQuotePublisher), nameof(Publish), "Publishing fix quotes", exception);
             }
             await _log.WriteInfoAsync(nameof(FixQuotePublisher), nameof(Publish), "Publishing fix quotes", $"{quotes.Count} fix quotes has been successfully published");
-        }
-
-        public void Start()
-        {
-            _publisher.Start();
         }
     }
 }
