@@ -1,16 +1,14 @@
 ﻿using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using Common.Log;
 using Lykke.Domain.Prices.Contracts;
 using Lykke.Domain.Prices.Model;
 using Lykke.Service.FIXQuotes.Core;
-using Lykke.Service.FIXQuotes.Core.Domain;
 using Lykke.Service.FIXQuotes.Core.Domain.Models;
 using Lykke.Service.FIXQuotes.Core.Services;
-using MoreLinq;
+using Lykke.Service.FIXQuotes.PriceCalculator;
 
 namespace Lykke.Service.FIXQuotes.Services
 {
@@ -20,12 +18,14 @@ namespace Lykke.Service.FIXQuotes.Services
         private readonly IFixQuotePublisher _quotePublisher;
         private readonly IMarketProfileService _marketProfileService;
         private readonly AppSettings.FixQuotesSettings _settings;
-        private DateTime _cutoffTime;
-        private readonly ConcurrentDictionary<string, IQuote> _lastReceivedAsks = new ConcurrentDictionary<string, IQuote>();
-        private readonly ConcurrentDictionary<string, IQuote> _lastReceivedBids = new ConcurrentDictionary<string, IQuote>();
-        private readonly ConcurrentDictionary<string, FixQuote> _lastReceived = new ConcurrentDictionary<string, FixQuote>();
+        private DateTime _fixingTime;
+        private readonly Dictionary<string, IQuote> _lastReceivedAsks = new Dictionary<string, IQuote>();
+        private readonly Dictionary<string, IQuote> _lastReceivedBids = new Dictionary<string, IQuote>();
         private readonly Timer _publishTimer;
         private readonly TimeSpan _publishPeriod = TimeSpan.FromHours(24);
+        private readonly Dictionary<string, PriceDiscovery> _priceDiscoveries;
+        private const double Threshold = 0.001; // threshold for the Intrinsic Time, 0.01 is equal to 1%
+        private readonly object _publishLock = new object();
 
         public FixQuotesManager(ILog log, IFixQuotePublisher quotePublisher, IMarketProfileService marketProfileService, AppSettings.FixQuotesSettings settings)
         {
@@ -34,82 +34,73 @@ namespace Lykke.Service.FIXQuotes.Services
             _marketProfileService = marketProfileService;
             _settings = settings;
             _publishTimer = new Timer(OnPublish);
-            SetPublishTime();
+            _priceDiscoveries = new Dictionary<string, PriceDiscovery>();
+            SetNextPublishTime();
             Start();
         }
 
-        private void SetPublishTime()
+        private void SetNextPublishTime()
         {
-            _cutoffTime = DateTime.UtcNow.Date.AddHours(_settings.FixingHour);
-            if (_cutoffTime <= DateTime.UtcNow)
+            _fixingTime = DateTime.UtcNow.Date.AddHours(_settings.FixingHour);
+            if (_fixingTime <= DateTime.UtcNow)
             {
-                _cutoffTime = _cutoffTime.Add(_publishPeriod);
+                _fixingTime = _fixingTime.Add(_publishPeriod);
             }
-            var delayToNextPublish = _cutoffTime - DateTime.UtcNow;
+            var delayToNextPublish = _fixingTime - DateTime.UtcNow;
             _publishTimer.Change(delayToNextPublish, Timeout.InfiniteTimeSpan);
         }
 
         private async void OnPublish(object state)
         {
+            const double dividend = 0.0001;
+            var tradeTime = DateTime.UtcNow.Date.AddHours(_settings.TradeHour);
+
+            var yearsToMaturity = (tradeTime - _fixingTime).Hours / 365.0 / 24.0;
+
             try
             {
-                await MergeQuotes(true);
-                var toPublish = (from fixQuote in _lastReceived.Values.ToArray()
-                    let ask = ShiftPrice(fixQuote.Ask, _settings.SpreadPercent)
-                    let bid = ShiftPrice(fixQuote.Bid, -_settings.SpreadPercent)
-                    select new FixQuoteModel
-                    {
-                        AssetPair = fixQuote.AssetPair,
-                        Ask = ask,
-                        Bid = bid,
-                        FixingTime = _cutoffTime,
-                        TradeTime = DateTime.UtcNow.Date.AddHours(_settings.TradeHour)
-                    }).ToList();
+                Monitor.Enter(_publishLock);
+
+                foreach (var pd in _priceDiscoveries.Values)
+                {
+                    pd.Finish(dividend, yearsToMaturity);
+                }
+                var toPublish = (from pd in _priceDiscoveries
+                                 let ask = AddPremium(pd.Value.LatestCallStrike, _settings.Premium)
+                                 let bid = AddPremium(pd.Value.LatestPutStrike, -_settings.Premium)
+                                 select new FixQuoteModel
+                                 {
+                                     AssetPair = pd.Key,
+                                     Ask = ask,
+                                     Bid = bid,
+                                     FixingTime = _fixingTime,
+                                     TradeTime = tradeTime
+                                 }).ToList();
 
                 await _quotePublisher.Publish(toPublish);
             }
             finally
             {
-                SetPublishTime();
-            }
-        }
-
-
-        private async Task MergeQuotes(bool logUnpaired = false)
-        {
-            var fullJoin = _lastReceivedAsks.FullGroupJoin(_lastReceivedBids, kv => kv.Key, kv => kv.Key, (key, kv1, kv2) => new { AssetPair = key, ask = kv1.FirstOrDefault().Value, bid = kv2.FirstOrDefault().Value });
-
-            foreach (var tuple in fullJoin)
-            {
-                if (logUnpaired)
+                SetNextPublishTime();
+                foreach (var pd in _priceDiscoveries.Values)
                 {
-                    if (tuple.ask == null)
-                    {
-                        await _log.WriteWarningAsync(nameof(FixQuotesManager), nameof(MergeQuotes), "Publish quotes", $"No pair ask quote for {tuple.AssetPair}");
-                        continue;
-                    }
-                    if (tuple.bid == null)
-                    {
-                        await _log.WriteWarningAsync(nameof(FixQuotesManager), nameof(MergeQuotes), "Publish quotes", $"No pair bid quote for {tuple.AssetPair}");
-                        continue;
-                    }
+                    pd.Reset();
                 }
-
-                _lastReceived[tuple.AssetPair] = new FixQuote(DateTime.UtcNow, tuple.AssetPair, tuple.ask.Price, tuple.bid.Price);
+                Monitor.Exit(_publishLock);
             }
         }
 
-        private static double ShiftPrice(decimal price, decimal shiftPercent)
+
+        private static double AddPremium(double price, double shiftPercent)
         {
-            return (double)(price + price / 100 * shiftPercent);
+            return price + price / 100d * shiftPercent;
         }
 
         public void ProcessQuote(IQuote quote)
         {
-
-            if (ShouldProcess(quote))
+            lock (_publishLock)
             {
-                var ask = quote.IsBuy;
+                var ask = !quote.IsBuy;
                 var timestamp = quote.Timestamp;
                 var key = quote.AssetPair;
                 if (ask)
@@ -140,15 +131,23 @@ namespace Lykke.Service.FIXQuotes.Services
                         _lastReceivedBids[key] = quote;
                     }
                 }
+
+                if (_lastReceivedAsks.TryGetValue(key, out var askPrice) && _lastReceivedAsks.TryGetValue(key, out var bidPrice))
+                {
+                    var quoteTime = askPrice.Timestamp > bidPrice.Timestamp ? askPrice.Timestamp : bidPrice.Timestamp;
+                    if (!_priceDiscoveries.TryGetValue(key, out var prd))
+                    {
+                        prd = new PriceDiscovery(Threshold);
+                        _priceDiscoveries[key] = prd;
+                    }
+                    var price = new Price(askPrice.Price, bidPrice.Price, quoteTime);
+                    prd.Run(price);
+                }
             }
         }
 
 
 
-        private bool ShouldProcess(IQuote quote)
-        {
-            return _cutoffTime > quote.Timestamp;
-        }
 
 
         private async void Start()
@@ -158,19 +157,30 @@ namespace Lykke.Service.FIXQuotes.Services
                 var allPairs = await _marketProfileService.GetAllPairsAsync();
                 foreach (var asset in allPairs)
                 {
-                    _lastReceivedAsks[asset.AssetPair] = new Quote
+                    var key = asset.AssetPair;
+                    _lastReceivedAsks[key] = new Quote
                     {
-                        AssetPair = asset.AssetPair,
+                        AssetPair = key,
                         Price = asset.AskPrice,
                         Timestamp = asset.AskPriceTimestamp
                     };
 
-                    _lastReceivedBids[asset.AssetPair] = new Quote
+                    _lastReceivedBids[key] = new Quote
                     {
-                        AssetPair = asset.AssetPair,
+                        AssetPair = key,
                         Price = asset.BidPrice,
                         Timestamp = asset.BidPriceTimestamp
                     };
+                    if (!_priceDiscoveries.TryGetValue(key, out var prd))
+                    {
+                        prd = new PriceDiscovery(Threshold);
+                        _priceDiscoveries[key] = prd;
+                        var timestamp = asset.AskPriceTimestamp > asset.BidPriceTimestamp
+                            ? asset.AskPriceTimestamp
+                            : asset.BidPriceTimestamp;
+                        var price = new Price(asset.AskPrice, asset.BidPrice, timestamp);
+                        prd.Run(price);
+                    }
                 }
             }
             catch (Exception ex)

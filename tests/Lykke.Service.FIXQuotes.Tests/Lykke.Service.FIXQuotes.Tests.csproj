@@ -7,17 +7,23 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.3.0" />
-    <PackageReference Include="Moq" Version="4.7.99" />
-    <PackageReference Include="xunit" Version="2.2.0" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.2.0" />
+    <PackageReference Include="NUnit" Version="3.8.1" />
+    <PackageReference Include="NUnit3TestAdapter" Version="3.8.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Lykke.Service.FIXQuotes.Core\Lykke.Service.FIXQuotes.Core.csproj" />
+    <ProjectReference Include="..\..\src\Lykke.Service.FIXQuotes.PriceCalculator\Lykke.Service.FIXQuotes.PriceCalculator.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Service Include="{82a7f48d-3b50-4b1e-b82e-3ada8210c358}" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="TestData\EURCHF_UTC_Ticks_Bid_2017.05.21_2017.06.14.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 

@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Lykke.Service.FIXQuotes.Core\Lykke.Service.FIXQuotes.Core.csproj" />
+    <ProjectReference Include="..\Lykke.Service.FIXQuotes.PriceCalculator\Lykke.Service.FIXQuotes.PriceCalculator.csproj" />
   </ItemGroup>
 
 </Project>

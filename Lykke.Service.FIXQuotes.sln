@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26730.12
+VisualStudioVersion = 15.0.26730.16
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "1. Instrastructure", "1. Instrastructure", "{CC2067D7-1971-47BB-B491-5649EA3C18B2}"
 EndProject
@@ -20,6 +20,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "4. Tests", "4. Tests", "{8F9036B1-5106-4C69-B2D2-B78EE52687A0}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Lykke.Service.FIXQuotes", "src\Lykke.Service.FIXQuotes\Lykke.Service.FIXQuotes.csproj", "{E414FDB9-FEEA-4CD0-9BBA-D1541601DF29}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Lykke.Service.FIXQuotes.PriceCalculator", "src\Lykke.Service.FIXQuotes.PriceCalculator\Lykke.Service.FIXQuotes.PriceCalculator.csproj", "{3D1BBA2A-867E-4EE1-A36F-329B50F09E3A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -43,6 +45,10 @@ Global
 		{E414FDB9-FEEA-4CD0-9BBA-D1541601DF29}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E414FDB9-FEEA-4CD0-9BBA-D1541601DF29}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E414FDB9-FEEA-4CD0-9BBA-D1541601DF29}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D1BBA2A-867E-4EE1-A36F-329B50F09E3A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D1BBA2A-867E-4EE1-A36F-329B50F09E3A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D1BBA2A-867E-4EE1-A36F-329B50F09E3A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D1BBA2A-867E-4EE1-A36F-329B50F09E3A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

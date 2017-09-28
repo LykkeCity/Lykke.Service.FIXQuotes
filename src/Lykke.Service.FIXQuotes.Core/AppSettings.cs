@@ -12,7 +12,7 @@
             public RabbitSettings FixQuoteFeedRabbit { get; set; }
             public double FixingHour { get; set; }
             public double TradeHour { get; set; }
-            public decimal SpreadPercent { get; set; }
+            public double Premium { get; set; }
             public MarketProfileServiceClient MarketProfileServiceClient { get; set; }
         }
     }
