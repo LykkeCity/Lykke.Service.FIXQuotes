@@ -1,10 +1,12 @@
-﻿namespace Lykke.Service.FIXQuotes.PriceCalculator
+﻿using System;
+
+namespace Lykke.Service.FIXQuotes.PriceCalculator
 {
-    public class PriceDiscovery
+    [Serializable]
+    public sealed class PriceDiscovery
     {
         private readonly double _threshold;
-        private  VolatilityEstimator _volatilityEstimator;
-        private double _latestVolatility; // holds result of the latest volatility estimation
+        private VolatilityEstimator _volatilityEstimator;
         public Price LatestPrice { get; set; }
 
         /// <summary>
@@ -25,10 +27,8 @@
 
         public void Finish(double dividend, double yearsToMaturity)
         {
-            _volatilityEstimator.Finish();
-            _latestVolatility = _volatilityEstimator.NormalizedVolatility;
-            LatestCallStrike = AmericanOption.PriceCall(_latestVolatility, dividend, LatestPrice.FloatMid, yearsToMaturity);
-            LatestPutStrike = AmericanOption.PricePut(_latestVolatility, dividend, LatestPrice.FloatMid, yearsToMaturity);
+            LatestCallStrike = AmericanOption.PriceCall(LatestVolatility, dividend, LatestPrice.FloatMid, yearsToMaturity);
+            LatestPutStrike = AmericanOption.PricePut(LatestVolatility, dividend, LatestPrice.FloatMid, yearsToMaturity);
         }
 
         public void Reset()
@@ -39,10 +39,7 @@
             LatestPrice = null;
         }
 
-        public double GetLatestVolatility()
-        {
-            return _latestVolatility;
-        }
+        public double LatestVolatility => _volatilityEstimator.NormalizedVolatility;
 
         public double LatestCallStrike { get; private set; }
 

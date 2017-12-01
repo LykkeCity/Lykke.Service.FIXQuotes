@@ -12,8 +12,9 @@ using Lykke.Service.FIXQuotes.Core;
 using Lykke.Service.FIXQuotes.Core.Domain.Models;
 using Lykke.Service.FIXQuotes.Core.Services;
 using Lykke.Service.FIXQuotes.Services;
-using Lykke.Service.MarketProfile.Client;
+using Lykke.Service.QuotesHistory.Client.AutorestClient;
 using Lykke.SettingsReader;
+using Microsoft.Rest.TransientFaultHandling;
 
 namespace Lykke.Service.FIXQuotes.Modules
 {
@@ -39,25 +40,16 @@ namespace Lykke.Service.FIXQuotes.Modules
                 .SingleInstance();
 
 
-            builder.Register(t => new LykkeMarketProfile(new Uri(_settings.MarketProfileServiceClient.ServiceUrl)))
-                .As<ILykkeMarketProfile>();
-
-            builder.RegisterType<MarketProfileService>()
-                .As<IMarketProfileService>();
-
-            builder.RegisterType<FixQuotePublisher>()
-                .As<IFixQuotePublisher>();
+            builder.RegisterType<QuotesHistoryService>()
+                .WithProperty(nameof(QuotesHistoryService.BaseUri), new Uri(_settings.Services.QuotesHistoryServiceUrl))
+                .As<IQuotesHistoryService>();
 
             RegisterRabbit(builder);
-
-
-            builder.RegisterType<QuoteReceiver>()
-                .AsSelf()
-                .SingleInstance();
 
             builder.RegisterType<FixQuotesManager>()
                 .As<IFixQuotesManager>()
                 .SingleInstance();
+
         }
 
         private void RegisterRabbit(ContainerBuilder builder)
@@ -75,10 +67,11 @@ namespace Lykke.Service.FIXQuotes.Modules
                         new ResilientErrorHandlingStrategy(_log, reciverRabbitMqSettings, TimeSpan.FromSeconds(10)))
                     .SetMessageDeserializer(new JsonMessageDeserializer<Quote>())
                     .SetMessageReadStrategy(new MessageReadWithTemporaryQueueStrategy())
-                    .SetLogger(_log))
+                    .SetLogger(c.Resolve<ILog>()))
                 .As<IMessageConsumer<IQuote>>()
-                .SingleInstance()
-                .AsSelf();
+                .As<IStopable>()
+                .AsSelf()
+                .SingleInstance();
 
             var publisherRabbitMqSettings = new RabbitMqSubscriptionSettings
             {
@@ -91,10 +84,13 @@ namespace Lykke.Service.FIXQuotes.Modules
             builder.Register(c => new RabbitMqPublisher<IEnumerable<FixQuoteModel>>(publisherRabbitMqSettings)
                     .SetSerializer(new JsonMessageSerializer<IEnumerable<FixQuoteModel>>())
                     .SetPublishStrategy(new DefaultFanoutPublishStrategy(publisherRabbitMqSettings))
-                    .SetLogger(_log))
+                    .DisableInMemoryQueuePersistence()
+                    .PublishSynchronously()
+                    .SetLogger(c.Resolve<ILog>()))
                 .As<IMessageProducer<IEnumerable<FixQuoteModel>>>()
-                .SingleInstance()
-                .AsSelf();
+                .As<IStopable>()
+                .AsSelf()
+                .SingleInstance();
         }
     }
 }

@@ -2,7 +2,8 @@
 
 namespace Lykke.Service.FIXQuotes.PriceCalculator
 {
-    public class DcOs
+    [Serializable]
+    public sealed class DcOs
     {
         private long _extreme;
         private long _prevExtreme;

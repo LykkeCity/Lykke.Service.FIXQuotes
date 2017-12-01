@@ -2,13 +2,16 @@
 using System.IO;
 using System.Runtime.Loader;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 
 namespace Lykke.Service.FIXQuotes
 {
     internal sealed class Program
     {
-        public static void Main(string[] args)
+        public static string EnvInfo => Environment.GetEnvironmentVariable("ENV_INFO");
+
+        public static async Task Main(string[] args)
         {
             var webHostCancellationTokenSource = new CancellationTokenSource();
             var end = new ManualResetEvent(false);
@@ -30,7 +33,7 @@ namespace Lykke.Service.FIXQuotes
                 .UseApplicationInsights()
                 .Build();
 
-            host.Run();
+            await host.RunAsync(webHostCancellationTokenSource.Token);
 
             end.Set();
 

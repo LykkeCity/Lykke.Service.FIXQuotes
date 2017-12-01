@@ -1,9 +1,11 @@
-﻿using Lykke.Domain.Prices.Contracts;
+﻿using System;
+using System.Collections.Generic;
+using Lykke.Service.FIXQuotes.Core.Domain.Models;
 
 namespace Lykke.Service.FIXQuotes.Core.Services
 {
     public interface IFixQuotesManager
     {
-        void ProcessQuote(IQuote quote);
+        IReadOnlyCollection<FixQuoteModel> GetFixPrices(DateTime tradeTime, DateTime fixingTime);
     }
 }

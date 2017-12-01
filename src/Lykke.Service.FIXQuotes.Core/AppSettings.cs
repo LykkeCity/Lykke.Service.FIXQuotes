@@ -13,7 +13,11 @@
             public double FixingHour { get; set; }
             public double TradeHour { get; set; }
             public double Premium { get; set; }
-            public MarketProfileServiceClient MarketProfileServiceClient { get; set; }
+            public Services Services { get; set; } = new Services();
+        }
+        public class Services
+        {
+            public string QuotesHistoryServiceUrl { get; set; }
         }
     }
 
@@ -21,6 +25,8 @@
     {
         public string LogsConnString { get; set; }
     }
+
+
 
     public class SlackNotificationsSettings
     {
@@ -34,10 +40,7 @@
         public string QueueName { get; set; }
     }
 
-    public class MarketProfileServiceClient
-    {
-        public string ServiceUrl { get; set; }
-    }
+
 
 
     public class RabbitSettings

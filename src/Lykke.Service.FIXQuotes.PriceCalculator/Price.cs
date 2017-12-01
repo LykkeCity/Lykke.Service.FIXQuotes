@@ -2,6 +2,7 @@
 
 namespace Lykke.Service.FIXQuotes.PriceCalculator
 {
+    [Serializable]
     public sealed class Price
     {
         private readonly int _nDecimals;
@@ -13,15 +14,15 @@ namespace Lykke.Service.FIXQuotes.PriceCalculator
 
         public long Time { get; }
 
-        public float Mid => (Bid + Ask) / 2f;
+        public double Mid => (Bid + Ask) / 2f;
 
         public long Spread => Ask - Bid;
 
-        public float FloatAsk => (float)(Ask * Math.Pow(10, NDecimals * -1));
+        public double FloatAsk => Ask * Math.Pow(10, NDecimals * -1);
 
-        public float FloatBid => (float)(Bid * Math.Pow(10, NDecimals * -1));
+        public double FloatBid => Bid * Math.Pow(10, NDecimals * -1);
 
-        public float FloatMid => (float)(Mid * Math.Pow(10, NDecimals * -1));
+        public double FloatMid => Mid * Math.Pow(10, NDecimals * -1);
 
         public Price(long bid, long ask, long time, int nDecimals)
         {

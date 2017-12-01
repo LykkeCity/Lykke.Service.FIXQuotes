@@ -11,11 +11,13 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <DocumentationFile>bin\Release\netcoreapp1.1\Lykke.Service.FIXQuotes.xml</DocumentationFile>
     <NoWarn>1701;1702;1705;1591</NoWarn>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <DocumentationFile>bin\Debug\netcoreapp1.1\Lykke.Service.FIXQuotes.xml</DocumentationFile>
     <NoWarn>1701;1702;1705;1591</NoWarn>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,22 +36,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Lykke.AzureStorage" Version="1.3.1" />
-    <PackageReference Include="Lykke.Common" Version="1.1.97" />
-    <PackageReference Include="Lykke.Common.ApiLibrary" Version="1.0.13" />
-    <PackageReference Include="Lykke.Logs" Version="2.0.1" />
-    <PackageReference Include="Lykke.Service.MarketProfile.Client" Version="1.0.20" />
+    <PackageReference Include="Lykke.Common.ApiLibrary" Version="1.0.16" />
+    <PackageReference Include="Lykke.Logs" Version="3.2.3" />
+    <PackageReference Include="Lykke.Service.QuotesHistory.Client" Version="1.0.8-beta" />
     <PackageReference Include="Lykke.Service.Session" Version="1.0.33" />
-    <PackageReference Include="Lykke.SettingsReader" Version="1.0.39" />
-    <PackageReference Include="Lykke.SlackNotification.AzureQueue" Version="1.0.5" />
-    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.1.1" />
-    <PackageReference Include="Microsoft.AspNetCore" Version="2.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="2.0.0" />
-    <PackageReference Include="Swashbuckle.SwaggerGen" Version="6.0.0-beta902" />
-    <PackageReference Include="Swashbuckle.SwaggerUi" Version="6.0.0-beta902" />
-    <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="4.2.0" />
+    <PackageReference Include="Lykke.SettingsReader" Version="1.0.43" />
+    <PackageReference Include="Lykke.SlackNotification.AzureQueue" Version="1.0.6" />
+    <PackageReference Include="Microsoft.AspNetCore" Version="2.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.0.0" />
   </ItemGroup>
   
   <ItemGroup>

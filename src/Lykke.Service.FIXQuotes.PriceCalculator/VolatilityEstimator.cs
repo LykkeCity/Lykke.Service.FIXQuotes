@@ -2,11 +2,14 @@
 
 namespace Lykke.Service.FIXQuotes.PriceCalculator
 {
-    public class VolatilityEstimator
+    [Serializable]
+    public sealed class VolatilityEstimator
     {
+        private const int PricesCountThreshold = 5;
         private readonly DcOs _dcOs;
         private double _sqrtOsDeviation;
-        private readonly long _msecInYear = TimeSpan.FromDays(365).Ticks;
+        private readonly double _ticksInYear = TimeSpan.FromDays(365).Ticks;
+        private long _runCounter;
 
 
         public VolatilityEstimator(double threshold)
@@ -27,23 +30,23 @@ namespace Lykke.Service.FIXQuotes.PriceCalculator
                 TimeFirstPrice = aPrice.Time;
             }
             TimeLastPrice = aPrice.Time;
+            _runCounter++;
         }
 
-        public void Finish()
+        public double TotalVolatility => Math.Sqrt(_sqrtOsDeviation);
+
+        public double NormalizedVolatility
         {
-            TotalVolatility = Math.Sqrt(_sqrtOsDeviation);
-            NormalizeVolatility(TotalVolatility);
+            get
+            {
+                if (_runCounter < PricesCountThreshold)
+                {
+                    throw new InvalidOperationException("Not enough prices to calculate volatility");
+                }
+                var coef = _ticksInYear / (TimeLastPrice - TimeFirstPrice);
+                return TotalVolatility * Math.Sqrt(coef);
+            }
         }
-
-        private void NormalizeVolatility(double totalVolatility)
-        {
-            var coef = (double)_msecInYear / (TimeLastPrice - TimeFirstPrice);
-            NormalizedVolatility = totalVolatility * Math.Sqrt(coef);
-        }
-
-        public double TotalVolatility { get; private set; }
-
-        public double NormalizedVolatility { get; private set; }
 
         public long TimeFirstPrice { get; private set; }
 

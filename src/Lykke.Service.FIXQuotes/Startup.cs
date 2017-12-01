@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using AzureStorage.Tables;
+using Common;
 using Common.Log;
 using Lykke.Common.ApiLibrary.Middleware;
 using Lykke.Common.ApiLibrary.Swagger;
@@ -14,7 +15,6 @@ using Lykke.Service.FIXQuotes.Core;
 using Lykke.Service.FIXQuotes.Core.Domain.Models;
 using Lykke.Service.FIXQuotes.Core.Services;
 using Lykke.Service.FIXQuotes.Modules;
-using Lykke.Service.FIXQuotes.Services;
 using Lykke.SettingsReader;
 using Lykke.SlackNotification.AzureQueue;
 using Microsoft.AspNetCore.Builder;
@@ -26,9 +26,10 @@ namespace Lykke.Service.FIXQuotes
 {
     public class Startup
     {
-        public IHostingEnvironment Environment { get; }
-        public IContainer ApplicationContainer { get; set; }
-        public IConfigurationRoot Configuration { get; }
+        private IContainer ApplicationContainer { get; set; }
+        private IConfigurationRoot Configuration { get; }
+        private ILog Log { get; set; }
+
 
         public Startup(IHostingEnvironment env)
         {
@@ -38,8 +39,6 @@ namespace Lykke.Service.FIXQuotes
                 .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true)
                 .AddEnvironmentVariables();
             Configuration = builder.Build();
-
-            Environment = env;
         }
 
         public IServiceProvider ConfigureServices(IServiceCollection services)
@@ -55,13 +54,17 @@ namespace Lykke.Service.FIXQuotes
                 options.DefaultLykkeConfiguration("v1", "FIXQuotes API");
             });
 
-            var builder = new ContainerBuilder();
             var appSettings = Configuration.LoadSettings<AppSettings>();
-            var log = CreateLogWithSlack(services, appSettings);
 
-            builder.RegisterModule(new ServiceModule(appSettings, log));
+            var builder = new ContainerBuilder();
+
+            Log = CreateLogWithSlack(services, appSettings);
+
+            builder.RegisterModule(new ServiceModule(appSettings, Log));
             builder.Populate(services);
             ApplicationContainer = builder.Build();
+
+
 
             return new AutofacServiceProvider(ApplicationContainer);
         }
@@ -77,7 +80,11 @@ namespace Lykke.Service.FIXQuotes
 
             app.UseMvc();
             app.UseSwagger();
-            app.UseSwaggerUi();
+            app.UseSwaggerUI(x =>
+            {
+                x.RoutePrefix = "swagger/ui";
+                x.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
+            });
 
             appLifetime.ApplicationStarted.Register(StartApplication);
             appLifetime.ApplicationStopping.Register(StopApplication);
@@ -86,21 +93,58 @@ namespace Lykke.Service.FIXQuotes
 
         private void StartApplication()
         {
-            ApplicationContainer.Resolve<QuoteReceiver>();// the composition root
-            ApplicationContainer.Resolve<RabbitMqSubscriber<IQuote>>().Start();
-            ApplicationContainer.Resolve<RabbitMqPublisher<IEnumerable<FixQuoteModel>>>().Start();
-
-
+            try
+            {
+                Log.WriteMonitorAsync("", $"Env: {Program.EnvInfo}", "Started").GetAwaiter().GetResult();
+                ApplicationContainer.Resolve<IFixQuotesManager>();// the composition root
+                ApplicationContainer.Resolve<RabbitMqSubscriber<IQuote>>().Start();
+                ApplicationContainer.Resolve<RabbitMqPublisher<IEnumerable<FixQuoteModel>>>().Start();
+            }
+            catch (Exception ex)
+            {
+                Log.WriteFatalErrorAsync(nameof(Startup), nameof(StartApplication), "", ex).GetAwaiter().GetResult();
+                throw;
+            }
         }
 
         private void StopApplication()
         {
 
+            try
+            {
+                foreach (var stopable in ApplicationContainer.Resolve<IStopable[]>())
+                {
+                    stopable.Stop();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log?.WriteFatalErrorAsync(nameof(Startup), nameof(StopApplication), "", ex).GetAwaiter().GetResult();
+                throw;
+            }
+
+
         }
 
         private void CleanUp()
         {
-            ApplicationContainer.Dispose();
+            try
+            {
+                // NOTE: Service can't recieve and process requests here, so you can destroy all resources
+
+                Log?.WriteMonitorAsync("", $"Env: {Program.EnvInfo}", "Terminating").GetAwaiter().GetResult();
+
+                ApplicationContainer.Dispose();
+            }
+            catch (Exception ex)
+            {
+                if (Log != null)
+                {
+                    Log.WriteFatalErrorAsync(nameof(Startup), nameof(CleanUp), "", ex).GetAwaiter().GetResult();
+                    (Log as IDisposable)?.Dispose();
+                }
+                throw;
+            }
         }
 
         private static ILog CreateLogWithSlack(IServiceCollection services, IReloadingManager<AppSettings> settings)
