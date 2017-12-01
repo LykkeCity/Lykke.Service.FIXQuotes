@@ -16,7 +16,7 @@ namespace Lykke.Service.FIXQuotes.Tests
             var priceDiscovery = new PriceDiscovery(threshold);
 
 
-            var filePath = @".\TestData";
+            var filePath = Path.Combine(Directory.GetCurrentDirectory(), @"TestData");
             var fileName = "EURCHF_UTC_Ticks_Bid_2017.05.21_2017.06.14.csv";
             var dateFormat = "yyyy.MM.dd HH:mm:ss.SSS";
             var sr = File.ReadLines(Path.Combine(filePath, fileName));
