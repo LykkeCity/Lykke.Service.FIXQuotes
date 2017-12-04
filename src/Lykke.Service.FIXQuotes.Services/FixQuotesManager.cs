@@ -65,7 +65,21 @@ namespace Lykke.Service.FIXQuotes.Services
             try
             {
                 var tradeTime = _fixingTime.Date.AddHours(_settings.TradeHour);
-                var toPublish = GetFixPrices(tradeTime, _fixingTime);
+                IReadOnlyCollection<FixQuoteModel> toPublish;
+                lock (_priceDiscoveryLock)
+                {
+                    try
+                    {
+                        toPublish = GetFixPrices(tradeTime, _fixingTime);
+                    }
+                    finally
+                    {
+                        foreach (var pd in _priceDiscoveries.Values)
+                        {
+                            pd.Reset();
+                        }
+                    }
+                }
 
                 await _publisher.ProduceAsync(toPublish);
             }

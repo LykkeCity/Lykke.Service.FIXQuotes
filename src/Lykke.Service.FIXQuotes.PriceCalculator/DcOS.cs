@@ -5,17 +5,17 @@ namespace Lykke.Service.FIXQuotes.PriceCalculator
     [Serializable]
     public sealed class DcOs
     {
-        private long _extreme;
-        private long _prevExtreme;
+        private double _extreme;
+        private double _prevExtreme;
         private double _thresholdUp; // 1% == 0.01
         private double _thresholdDown;
         private double _osSizeUp;
         private double _osSizeDown;
         private int _mode; // +1 for expected upward DC, -1 for expected downward DC
         private bool _initialized;
-        private long _reference;
-        private long _latestDCprice; // this is the price of the latest registered DC IE
-        private long _prevDCprice; // this is the price of the DC IE before the latest one
+        private double _reference;
+        private double _latestDCprice; // this is the price of the latest registered DC IE
+        private double _prevDCprice; // this is the price of the DC IE before the latest one
         private readonly bool _relativeMoves; // shows if the algorithm should compute relative of absolute price changes
         private double _osL; // is length of the previous overshoot
 
@@ -74,16 +74,16 @@ namespace Lykke.Service.FIXQuotes.PriceCalculator
                     if (aPrice.Ask < _extreme)
                     {
                         _extreme = aPrice.Ask;
-                        if (-Math.Log((double)_extreme / _reference) >= _osSizeDown)
+                        if (-Math.Log(_extreme / _reference) >= _osSizeDown)
                         {
                             _reference = _extreme;
                             return -2;
                         }
                         return 0;
                     }
-                    if (Math.Log((double)aPrice.Bid / _extreme) >= _thresholdUp)
+                    if (Math.Log(aPrice.Bid / _extreme) >= _thresholdUp)
                     {
-                        _osL = -Math.Log((double)_extreme / _latestDCprice);
+                        _osL = -Math.Log(_extreme / _latestDCprice);
                         _prevDCprice = _latestDCprice;
                         _latestDCprice = aPrice.Bid;
                         _prevExtreme = _extreme;
@@ -97,16 +97,16 @@ namespace Lykke.Service.FIXQuotes.PriceCalculator
                     if (aPrice.Bid > _extreme)
                     {
                         _extreme = aPrice.Bid;
-                        if (Math.Log((double)_extreme / _reference) >= _osSizeUp)
+                        if (Math.Log(_extreme / _reference) >= _osSizeUp)
                         {
                             _reference = _extreme;
                             return 2;
                         }
                         return 0;
                     }
-                    if (-Math.Log((double)aPrice.Ask / _extreme) >= _thresholdDown)
+                    if (-Math.Log(aPrice.Ask / _extreme) >= _thresholdDown)
                     {
-                        _osL = Math.Log((double)_extreme / _latestDCprice);
+                        _osL = Math.Log(_extreme / _latestDCprice);
                         _prevDCprice = _latestDCprice;
                         _latestDCprice = aPrice.Ask;
                         _prevExtreme = _extreme;
@@ -211,22 +211,22 @@ namespace Lykke.Service.FIXQuotes.PriceCalculator
             return _osL;
         }
 
-        public long GetLatestDCprice()
+        public double GetLatestDCprice()
         {
             return _latestDCprice;
         }
 
-        public long GetPrevDCprice()
+        public double GetPrevDCprice()
         {
             return _prevDCprice;
         }
 
-        public long GetExtreme()
+        public double GetExtreme()
         {
             return _extreme;
         }
 
-        public long GetPrevExtreme()
+        public double GetPrevExtreme()
         {
             return _prevExtreme;
         }
@@ -296,7 +296,7 @@ namespace Lykke.Service.FIXQuotes.PriceCalculator
             _initialized = initialized;
         }
 
-        public long GetReference()
+        public double GetReference()
         {
             return _reference;
         }

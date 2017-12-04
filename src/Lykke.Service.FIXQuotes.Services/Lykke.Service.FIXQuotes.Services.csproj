@@ -9,12 +9,13 @@
 
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="6.0.0" />
-    <PackageReference Include="Flurl.Http" Version="2.0.1" />
+    <PackageReference Include="Flurl.Http" Version="2.1.0" />
     <PackageReference Include="Lykke.Common" Version="3.0.2" />
     <PackageReference Include="Lykke.Domain.Prices" Version="0.9.11" />
     <PackageReference Include="Lykke.RabbitMqBroker" Version="4.2.0" />
     <PackageReference Include="Lykke.Service.QuotesHistory.Client" Version="1.0.8-beta" />
     <PackageReference Include="morelinq" Version="2.8.0" />
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="6.7.0.4267" />
   </ItemGroup>
 
   <ItemGroup>

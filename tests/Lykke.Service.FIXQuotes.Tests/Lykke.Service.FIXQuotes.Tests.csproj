@@ -12,7 +12,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Lykke.Service.FIXQuotes.Core\Lykke.Service.FIXQuotes.Core.csproj" />
     <ProjectReference Include="..\..\src\Lykke.Service.FIXQuotes.PriceCalculator\Lykke.Service.FIXQuotes.PriceCalculator.csproj" />
   </ItemGroup>
 

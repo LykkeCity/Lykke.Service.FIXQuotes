@@ -27,8 +27,8 @@ namespace Lykke.Service.FIXQuotes.PriceCalculator
 
         public void Finish(double dividend, double yearsToMaturity)
         {
-            LatestCallStrike = AmericanOption.PriceCall(LatestVolatility, dividend, LatestPrice.FloatMid, yearsToMaturity);
-            LatestPutStrike = AmericanOption.PricePut(LatestVolatility, dividend, LatestPrice.FloatMid, yearsToMaturity);
+            LatestCallStrike = AmericanOption.PriceCall(LatestVolatility, dividend, LatestPrice.Mid, yearsToMaturity);
+            LatestPutStrike = AmericanOption.PricePut(LatestVolatility, dividend, LatestPrice.Mid, yearsToMaturity);
         }
 
         public void Reset()

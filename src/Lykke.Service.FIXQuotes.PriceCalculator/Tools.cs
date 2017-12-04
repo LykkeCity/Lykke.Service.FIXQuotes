@@ -169,12 +169,12 @@ namespace Lykke.Service.FIXQuotes.PriceCalculator
          * @param timeIndex index of the time in the string format
          * @return an instance Price
          */
-        public static Price PriceLineToPrice(string inputString, char delimiter, int nDecimals, string dateFormat,
+        public static Price PriceLineToPrice(string inputString, char delimiter, string dateFormat,
             int askIndex, int bidIndex, int timeIndex)
         {
             var priceInfo = inputString.Split(delimiter);
-            var bid = (long)(double.Parse(priceInfo[bidIndex]) * Math.Pow(10, nDecimals));
-            var ask = (long)(double.Parse(priceInfo[askIndex]) * Math.Pow(10, nDecimals));
+            var bid = double.Parse(priceInfo[bidIndex]);
+            var ask = double.Parse(priceInfo[askIndex]);
             long time;
             if (dateFormat.Equals(""))
             {
@@ -184,7 +184,7 @@ namespace Lykke.Service.FIXQuotes.PriceCalculator
             {
                 time = StringToDate(priceInfo[timeIndex], dateFormat).Ticks ;
             }
-            return new Price(bid, ask, time, nDecimals);
+            return new Price(bid, ask, time);
         }
 
 

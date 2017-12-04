@@ -29,7 +29,7 @@ namespace Lykke.Service.FIXQuotes.Tests
                     skipHeader = false;
                     continue;
                 }
-                var price = Tools.PriceLineToPrice(priceLine, ',', 5, dateFormat, 1, 2, 0);
+                var price = Tools.PriceLineToPrice(priceLine, ',', dateFormat, 1, 2, 0);
                 priceDiscovery.Run(price); // should run this method for all historical ticks.
                 i++;
             }
@@ -41,16 +41,16 @@ namespace Lykke.Service.FIXQuotes.Tests
             var putPrice = priceDiscovery.LatestPutStrike;
             var callPrice = priceDiscovery.LatestCallStrike;
             Console.WriteLine("Computed volatility (in Intrinsic Time): " + computedVolatility);
-            Console.WriteLine($"Ask {priceDiscovery.LatestPrice.FloatAsk} Bid {priceDiscovery.LatestPrice.FloatBid}");
+            Console.WriteLine($"Ask {priceDiscovery.LatestPrice.Ask} Bid {priceDiscovery.LatestPrice.Bid}");
 
             Console.WriteLine("Fixed Ask (call): " + callPrice);
             Console.WriteLine("Fixed Bid (put): " + putPrice);
 
-            Assert.That(computedVolatility, Is.EqualTo(0.0292970455147442).Within(0.00001));
-            Assert.That(priceDiscovery.LatestPrice.FloatAsk, Is.EqualTo(1.08612).Within(0.00001));
-            Assert.That(priceDiscovery.LatestPrice.FloatBid, Is.EqualTo(1.08602).Within(0.00001));
-            Assert.That(callPrice, Is.EqualTo(1.08801276244632).Within(0.00001));
-            Assert.That(putPrice, Is.EqualTo(1.08412712059506).Within(0.00001));
+            Assert.That(computedVolatility, Is.EqualTo(0.0292970455147442).Within(0.0001));
+            Assert.That(priceDiscovery.LatestPrice.Ask, Is.EqualTo(1.08612).Within(0.0001));
+            Assert.That(priceDiscovery.LatestPrice.Bid, Is.EqualTo(1.08602).Within(0.0001));
+            Assert.That(callPrice, Is.EqualTo(1.08801276244632).Within(0.0001));
+            Assert.That(putPrice, Is.EqualTo(1.08412712059506).Within(0.0001));
 
         }
     }

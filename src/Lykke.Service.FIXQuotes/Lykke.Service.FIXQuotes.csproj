@@ -36,16 +36,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Lykke.Common.ApiLibrary" Version="1.0.16" />
-    <PackageReference Include="Lykke.Logs" Version="3.2.3" />
+    <PackageReference Include="Lykke.Common.ApiLibrary" Version="1.0.18" />
+    <PackageReference Include="Lykke.Logs" Version="3.3.0" />
     <PackageReference Include="Lykke.Service.QuotesHistory.Client" Version="1.0.8-beta" />
     <PackageReference Include="Lykke.Service.Session" Version="1.0.33" />
     <PackageReference Include="Lykke.SettingsReader" Version="1.0.43" />
-    <PackageReference Include="Lykke.SlackNotification.AzureQueue" Version="1.0.6" />
+    <PackageReference Include="Lykke.SlackNotification.AzureQueue" Version="2.0.1" />
     <PackageReference Include="Microsoft.AspNetCore" Version="2.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.0.1" />
     <PackageReference Include="Microsoft.Extensions.Caching.Redis" Version="2.0.0" />
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="6.7.0.4267" />
   </ItemGroup>
   
   <ItemGroup>

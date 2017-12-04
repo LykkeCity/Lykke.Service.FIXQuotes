@@ -3,7 +3,6 @@
 namespace Lykke.Service.FIXQuotes.PriceCalculator
 {
     /**
-     * Created by author.
      * The main inspiration was found in the paper "American Options on Assets with Dividends Near Expiry" by J. D. Evans et. al.
      * We use the eq. 1.6, hence equations 1.5 and 1.7 could also be used depending on the required properties.
      */
